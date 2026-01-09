@@ -1,0 +1,9 @@
+[submodule "corelib"]
+	path = corelib
+	url = git@github.com:smantzavinos-globus/nix-demo-corelib.git
+[submodule "editor"]
+	path = editor
+	url = git@github.com:smantzavinos-globus/nix-demo-editor.git
+[submodule "viewer"]
+	path = viewer
+	url = git@github.com:smantzavinos-globus/nix-demo-viewer.git
