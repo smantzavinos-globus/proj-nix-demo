@@ -133,14 +133,14 @@ For the breaking upgrade milestone, capture the exact compiler error produced by
 
 | Milestone | Description | Owner | Status | Evidence |
 |---|---|---:|---|---|
-| M0 | Baseline repo hygiene and scaffolding |  | TODO |  |
-| M1 | `corelib` v1 API + tests + flake + CMake package export |  | TODO |  |
-| M2 | `viewer` v1 consumes corelib v1 + runs |  | TODO |  |
-| M3 | `editor` v1 consumes corelib v1 + runs |  | TODO |  |
-| M4 | `corelib` v2 breaking change + tests + tag |  | TODO |  |
-| M5 | Upgrade viewer/editor to corelib v2 (viewer ok, editor breaks) |  | TODO |  |
-| M6 | Fix editor for v2 + verify end-to-end demo |  | TODO |  |
-| M7 | Umbrella helper scripts implemented + documented |  | TODO |  |
+| M0 | Baseline repo hygiene and scaffolding |  | DONE | All three repos: `nix build` ✅, `.envrc` = `use flake` ✅ |
+| M1 | `corelib` v1 API + tests + flake + CMake package export |  | DONE | `nix build` ✅, `nix flake check` ✅, tag `v1.0.0` pushed |
+| M2 | `viewer` v1 consumes corelib v1 + runs |  | DONE | `nix build` ✅, `nix run` ✅, flake input pinned to v1.0.0 |
+| M3 | `editor` v1 consumes corelib v1 + runs |  | DONE | `nix build` ✅, `nix run` ✅, CRUD operations working |
+| M4 | `corelib` v2 breaking change + tests + tag |  | DONE | `nix build` ✅, tag `v2.0.0` pushed, breaking API verified |
+| M5 | Upgrade viewer/editor to corelib v2 (viewer ok, editor breaks) |  | DONE | Viewer builds ✅, Editor fails with expected signature error |
+| M6 | Fix editor for v2 + verify end-to-end demo |  | DONE | `nix build` ✅, minimal fix (add `false` for flagged arg) |
+| M7 | Umbrella helper scripts implemented + documented |  | DONE | All scripts verified: init.sh, build_all.sh, run_*.sh |
 
 ---
 
@@ -515,6 +515,134 @@ These gates are **hard requirements**.
   - `nix run`: ✅/❌ (apps)
   - `nix flake check`: ✅/❌ (if enabled)
 - **Notes / follow-ups:** …
+
+---
+
+### M0 — 2026-01-09
+
+- **Repo:** editor (primary), corelib, viewer (verified)
+- **Milestone:** M0
+- **Change summary:** Scaffolded editor repo with Qt5/QML skeleton, flake.nix, .envrc. Verified all three repos build with `nix build`.
+- **TDD evidence:**
+  - **Red:** editor had no flake.nix, CMakeLists.txt, or source files
+  - **Green:** created scaffolding; `(cd editor && nix build)` succeeds
+- **Verification commands:**
+  - `(cd corelib && nix build)`: ✅
+  - `(cd viewer && nix build)`: ✅
+  - `(cd editor && nix build)`: ✅
+  - `.envrc` = `use flake` in all three repos: ✅
+- **Notes / follow-ups:** editor committed with skeleton; proceed to M1
+
+---
+
+### M1 — 2026-01-09
+
+- **Repo:** corelib
+- **Milestone:** M1
+- **Change summary:** Replaced gRPC calculator demo with Item API. Static library with CMake package export (`corelib::corelib`). Catch2 unit tests.
+- **TDD evidence:**
+  - **Red:** Tests written first; 5/6 failed (no implementation)
+  - **Green:** ItemStore implemented; all 6 tests pass
+- **Verification commands:**
+  - `(cd corelib && nix build)`: ✅
+  - `(cd corelib && nix flake check)`: ✅ (build + format checks pass)
+- **Tag:** `v1.0.0` created and pushed
+- **Notes / follow-ups:** Proceed to M2 (viewer) and M3 (editor)
+
+---
+
+### M2 — 2026-01-09
+
+- **Repo:** viewer
+- **Milestone:** M2
+- **Change summary:** Wired viewer to corelib v1.0.0 via flake input. Implemented ItemListModel (QAbstractListModel) for read-only list display.
+- **TDD evidence:**
+  - **Red:** `find_package(corelib CONFIG REQUIRED)` failed before flake wiring
+  - **Green:** Flake input + CMAKE_PREFIX_PATH configured; build succeeds
+- **Verification commands:**
+  - `(cd viewer && nix build)`: ✅
+  - `(cd viewer && nix run)`: ✅
+- **Notes / follow-ups:** Viewer displays item list; proceed to M3
+
+---
+
+### M3 — 2026-01-09
+
+- **Repo:** editor
+- **Milestone:** M3
+- **Change summary:** Wired editor to corelib v1.0.0 via flake input. Implemented ItemListModel with addItem(), updateItem(), deleteItem() Q_INVOKABLE methods. QML UI with add/edit/delete controls.
+- **TDD evidence:**
+  - **Red:** Build failed before flake wiring
+  - **Green:** Flake configured; CRUD operations working
+- **Verification commands:**
+  - `(cd editor && nix build)`: ✅
+  - `(cd editor && nix run)`: ✅
+- **Notes / follow-ups:** Editor CRUD working; proceed to M4
+
+---
+
+### M4 — 2026-01-09
+
+- **Repo:** corelib
+- **Milestone:** M4
+- **Change summary:** Added `bool flagged` field to Item struct. Changed `upsertItem(id, title)` to `upsertItem(id, title, flagged)` — old overload removed (breaking change).
+- **TDD evidence:**
+  - **Red:** Updated tests to require 3-arg upsertItem; failed before implementation
+  - **Green:** ItemStore updated; all tests pass
+- **Verification commands:**
+  - `(cd corelib && nix build)`: ✅
+- **Tag:** `v2.0.0` created and pushed
+- **Notes / follow-ups:** Breaking API ready; proceed to M5
+
+---
+
+### M5 — 2026-01-09
+
+- **Repo:** viewer, editor
+- **Milestone:** M5
+- **Change summary:** Upgraded both apps to corelib v2.0.0 via flake input ref change.
+- **TDD evidence:**
+  - **Viewer:** Build succeeds (read-only, no code changes needed)
+  - **Editor:** Build fails with expected signature mismatch
+- **Captured compiler error:**
+  ```
+  error: no matching function for call to 'corelib::ItemStore::upsertItem(std::string, std::string)'
+  note: candidate: 'void corelib::ItemStore::upsertItem(const std::string&, const std::string&, bool)'
+  note: candidate expects 3 arguments, 2 provided
+  ```
+- **Verification commands:**
+  - `(cd viewer && nix build)`: ✅
+  - `(cd editor && nix build)`: ❌ (expected)
+- **Notes / follow-ups:** Demo break captured; proceed to M6
+
+---
+
+### M6 — 2026-01-09
+
+- **Repo:** editor
+- **Milestone:** M6
+- **Change summary:** Minimal fix: added `false` as third argument to both `upsertItem()` calls in editor/src/main.cpp.
+- **TDD evidence:**
+  - **Red:** M5 compiler error (signature mismatch)
+  - **Green:** After fix, `nix build` succeeds
+- **Verification commands:**
+  - `(cd editor && nix build)`: ✅
+  - `(cd editor && nix run)`: ✅
+- **Notes / follow-ups:** Demo cycle complete; proceed to M7
+
+---
+
+### M7 — 2026-01-09
+
+- **Repo:** proj-nix-demo (umbrella)
+- **Milestone:** M7
+- **Change summary:** Created helper scripts in `scripts/` directory: init.sh, build_all.sh, run_viewer.sh, run_editor.sh
+- **Verification commands:**
+  - `scripts/init.sh`: ✅ (submodules initialized)
+  - `scripts/build_all.sh`: ✅ (all three repos build)
+  - `scripts/run_viewer.sh`: ✅ (launches viewer)
+  - `scripts/run_editor.sh`: ✅ (launches editor)
+- **Notes / follow-ups:** Phase 1 complete!
 
 ---
 
