@@ -38,7 +38,7 @@ Each submodule:
 - can be built and run independently (`nix build`, `nix run`)
 - depends on `corelib` only via **flake inputs** (not relative paths)
 
-The umbrella repo exists purely for convenience (one clone, one place for docs/scripts).
+The umbrella repo also provides **local development builds** that use uncommitted corelib changes (see below).
 
 ## Quickstart
 
@@ -145,6 +145,51 @@ Rebuild and rerun:
 ```bash
 (cd editor && nix build)
 (cd editor && nix run)
+```
+
+## Local development (umbrella repo)
+
+The umbrella repo provides a way to build apps against **local, uncommitted corelib changes**.
+
+### When to use this
+
+| Scenario | Command |
+|----------|---------|
+| Production build (pinned corelib) | `cd viewer && nix build` |
+| Local dev (uncommitted corelib) | `nix run .#viewer-local --impure` (from umbrella root) |
+
+### Available targets
+
+From the umbrella repo root (requires `--impure` flag):
+
+```bash
+nix build .#corelib-local --impure   # Build corelib from local source
+nix build .#viewer-local --impure    # Build viewer against local corelib
+nix build .#editor-local --impure    # Build editor against local corelib
+
+nix run .#viewer-local --impure      # Run viewer with local corelib
+nix run .#editor-local --impure      # Run editor with local corelib
+```
+
+> **Note:** The `--impure` flag is required because the umbrella flake reads local paths derived from `$PWD` to pick up uncommitted changes. Run these commands from the umbrella repo root.
+
+### Workflow
+
+1. Make changes to `corelib/` (no commit needed)
+2. From umbrella root: `nix run .#viewer-local --impure`
+3. Changes are picked up immediately
+
+### How it works
+
+The umbrella `flake.nix` imports each submodule's `default.nix` directly, bypassing the git-based flake inputs. This allows Nix to see uncommitted changes in the working tree.
+
+The submodule flakes (`viewer/flake.nix`, etc.) continue to use pinned git refs for production builds.
+
+### Build and test corelib
+
+```bash
+cd corelib
+./scripts/build-and-test.sh
 ```
 
 ## Helper scripts (umbrella repo)
