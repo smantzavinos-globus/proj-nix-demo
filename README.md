@@ -149,6 +149,7 @@ Rebuild and rerun:
 
 ## Local development (umbrella repo)
 
+
 The umbrella repo provides a way to build apps against **local, uncommitted corelib changes**.
 
 ### When to use this
@@ -185,6 +186,17 @@ The umbrella `flake.nix` imports each submodule's `default.nix` directly, bypass
 
 The submodule flakes (`viewer/flake.nix`, etc.) continue to use pinned git refs for production builds.
 
+### Build caching
+
+Nix caches build outputs by content hash. When you build multiple apps against the same corelib source:
+
+```bash
+nix build .#viewer-local --impure   # Builds: corelib + viewer (2 derivations)
+nix build .#editor-local --impure   # Builds: editor only (1 derivation) — corelib reused
+```
+
+The second build reuses the cached corelib because the source hash is identical. This applies to all dependencies — if viewer and editor share the same Boost version, Qt version, etc., those are also built/fetched once and reused.
+
 ### Build and test corelib
 
 ```bash
@@ -212,10 +224,21 @@ Planned scripts:
   - `v1.0.0`
   - `v2.0.0`
 
-## Phase 1 acceptance criteria
+## Dependency version governance (Model A)
 
-- `nix build` works for Viewer and Editor pinned to corelib `v1.0.0`
-- after bumping corelib to `v2.0.0`:
-  - Viewer still builds
-  - Editor fails
-- a small Editor change restores compatibility
+A subtle problem with splitting this demo into multiple repos is **dependency drift**.
+
+Each repository has its own `flake.lock`, so if the repos are owned by different groups and updated independently, they can end up pinned to different `nixpkgs` revisions. That means they may build against different versions of dependencies like **Boost**.
+
+This matters especially when a dependency appears in a **public C++ interface**. For example, `corelib` exposes a `boost::uuids::uuid` in `Item`, so consumers effectively compile against Boost headers as part of the API surface. Mixing Boost versions across producer/consumer repos can lead to CMake configuration failures and hard-to-debug mismatches.
+
+**Suggested solution (Model A): maintain a shared toolchain baseline.**
+
+- Create a small “platform” flake (owned by an infra/toolchain group) that pins a single `nixpkgs` revision.
+- All participating repos set their `inputs.nixpkgs` to **follow** that platform pin.
+- Updates happen by bumping the platform pin (PR), running integration CI, then letting downstream repos consume the new baseline.
+
+This keeps Boost/Qt/etc. aligned across repos without micromanaging individual package versions.
+
+> In this umbrella repo, the `*-local` targets already approximate this: they all evaluate under a single top-level `nixpkgs` pin, so dependency versions stay consistent.
+
