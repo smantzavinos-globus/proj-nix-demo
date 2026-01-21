@@ -1,0 +1,9 @@
+# Nix build outputs (repo root)
+/result
+/result-*
+
+# direnv
+.direnv/
+
+# editor/backup files
+*~
